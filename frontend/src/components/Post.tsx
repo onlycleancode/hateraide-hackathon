@@ -1,6 +1,5 @@
 import React from 'react';
 import type { Post as PostType } from '../types';
-// import Reply from './Reply';
 
 interface PostProps {
   post: PostType;

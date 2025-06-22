@@ -30,7 +30,6 @@ class ApiService {
    */
   async enableHaterAide(postId: string): Promise<any> {
     try {
-      console.log(`🛡️ Enabling HaterAide for post: ${postId}`);
 
       const response = await fetch(`${this.baseUrl}/api/enable-hateraide`, {
         method: "POST",
@@ -45,10 +44,8 @@ class ApiService {
       }
 
       const result = await response.json();
-      console.log("✅ HaterAide enabled successfully:", result);
       return result;
     } catch (error) {
-      console.error("❌ HaterAide enable failed:", error);
       throw error;
     }
   }
@@ -87,35 +84,21 @@ class ApiService {
    * Future endpoint: Run individual agents
    */
   async runPostAnalyzer(postId: string) {
-    // Will call: POST /api/post-analyzer
-    // Body: { post_id: postId }
-    console.log(`Running post_analyzer for ${postId}`);
   }
 
   async runReplyAnalyzer(postId: string) {
-    // Will call: POST /api/reply-analyzer
-    // Body: { post_id: postId }
-    console.log(`Running reply_analyzer for ${postId}`);
   }
 
   async runGeneralSentiment(postId: string) {
-    // Will call: POST /api/general-sentiment
-    // Body: { post_id: postId }
-    console.log(`Running general_sentiment for ${postId}`);
   }
 
   async runNextStep(postId: string) {
-    // Will call: POST /api/next-step
-    // Body: { post_id: postId }
-    console.log(`Running next_step for ${postId}`);
   }
 
   /**
    * Get analysis results for a post
    */
   async getAnalysisResults(postId: string) {
-    // Will call: GET /api/analysis/{post_id}
-    console.log(`Getting analysis results for ${postId}`);
   }
 }
 

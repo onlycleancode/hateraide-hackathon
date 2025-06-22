@@ -47,7 +47,6 @@ function HaterAideAnalysis({
       });
       
       setPreloadedModerations(preloadedActions);
-      console.log(`Preloaded ${preloadedActions.size} moderation actions from existing data`);
     }
   }, [replyAnalysisData]);
   
@@ -74,7 +73,6 @@ function HaterAideAnalysis({
     // Subscribe to moderation updates
     const subscriptionId = 'hateraide-analysis';
     wsService.subscribe(subscriptionId, (update: ModerationUpdate) => {
-      console.log('Received moderation update:', update);
       setModerationActions(prev => {
         const newMap = new Map(prev);
         newMap.set(update.action.reply_id, update.action);
@@ -94,7 +92,7 @@ function HaterAideAnalysis({
           setModerationActions(actions);
         }
       })
-      .catch(err => console.error('Failed to load moderation status:', err));
+      .catch(err => {});
     
     return () => {
       wsService.unsubscribe(subscriptionId);
@@ -138,7 +136,6 @@ function HaterAideAnalysis({
           }
         }
       } catch (error) {
-        console.error('Failed to load analysis data:', error);
       }
     };
 
@@ -241,7 +238,6 @@ function HaterAideAnalysis({
   // Helper function to get suggested response from next steps data
   const getSuggestedResponse = (replyId: string, authorName: string) => {
     if (!nextStepsData?.next_step_analysis?.recommended_next_steps) {
-      console.log(`📊 No next steps data available yet`);
       return null;
     }
     
@@ -251,7 +247,6 @@ function HaterAideAnalysis({
     );
     
     if (!isImportantResponder) {
-      console.log(`📊 Reply ${replyId} not in important responders list`);
       return null;
     }
     
@@ -260,7 +255,6 @@ function HaterAideAnalysis({
       (action: any) => action.reply_id === replyId || action.responder === authorName
     );
     
-    console.log(`📊 Found recommendation for ${replyId}:`, recommendation?.suggested_response);
     return recommendation?.suggested_response || null;
   };
 
@@ -492,52 +486,6 @@ function HaterAideAnalysis({
             >
               {generalSentimentData?.general_sentiment_results?.results ? (
                 <div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      marginBottom: "12px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "16px",
-                        padding: "4px 8px",
-                        borderRadius: "4px",
-                        backgroundColor:
-                          generalSentimentData.general_sentiment_results.results.overall_sentiment === "positive"
-                            ? "#d4edda"
-                            : generalSentimentData.general_sentiment_results.results.overall_sentiment === "negative"
-                            ? "#f8d7da"
-                            : "#fff3cd",
-                        color:
-                          generalSentimentData.general_sentiment_results.results.overall_sentiment === "positive"
-                            ? "#155724"
-                            : generalSentimentData.general_sentiment_results.results.overall_sentiment === "negative"
-                            ? "#721c24"
-                            : "#856404",
-                        fontWeight: "600",
-                        textTransform: "capitalize",
-                      }}
-                    >
-                      {generalSentimentData.general_sentiment_results.results.overall_sentiment}
-                    </span>
-                    {generalSentimentData.general_sentiment_results.results.engagement_stats.safety_concern === "high" && (
-                      <span
-                        style={{
-                          fontSize: "12px",
-                          backgroundColor: "#f8d7da",
-                          color: "#721c24",
-                          padding: "2px 6px",
-                          borderRadius: "3px",
-                          fontWeight: "600",
-                        }}
-                      >
-                        ⚠️ HIGH SAFETY CONCERN
-                      </span>
-                    )}
-                  </div>
                   <div style={{ marginBottom: "12px" }}>
                     <p
                       style={{
@@ -964,7 +912,6 @@ function HaterAideAnalysis({
                             }}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && replyText.trim()) {
-                                console.log(`Reply to ${reply.id}: ${replyText}`);
                                 setReplyingToId(null);
                                 setReplyText("");
                               }
@@ -1097,7 +1044,6 @@ function App() {
         setLoading(false);
       })
       .catch((error) => {
-        console.error("Error:", error);
         setLoading(false);
       });
   }, []); // Empty dependency array - only run once
@@ -1115,7 +1061,6 @@ function App() {
             setReplyAnalysisData(data);
           }
         } catch (error) {
-          console.error('Failed to load reply analysis data:', error);
         }
       };
 
@@ -1137,10 +1082,8 @@ function App() {
   const handleEnableHaterAide = async (postId: string) => {
     // Find the post and switch UI immediately
     const post = data?.posts.find((p) => p.id === postId);
-    console.log(`📝 Found post:`, post);
 
     if (post) {
-      console.log(`🎯 Setting selectedPost and changing view...`);
       // Switch UI immediately and store the post ID to prevent loss
       setSelectedPost(post);
       setSelectedPostId(postId);
@@ -1156,30 +1099,24 @@ function App() {
             if (replyData && Object.keys(replyData).length > 0) {
               setReplyAnalysisData(replyData);
               setReplyAnalysisResults(replyData.reply_analyzer_results);
-              console.log('✅ Loaded existing analysis data for instant moderation display');
             }
           }
         } catch (error) {
-          console.log('No existing analysis data found, will generate new');
         }
         setHasLoadedInitialAnalysis(true);
       }
 
       // Run analysis (will update with fresh data)
       try {
-        console.log(`🛡️ HaterAide enabled for post: ${postId}`);
         const result = await apiService.runHaterAideAnalysis(postId);
-        console.log("Analysis completed:", result);
 
         // Store reply analysis results for moderation display
         if (result.reply_analyzer_results) {
           setReplyAnalysisResults(result.reply_analyzer_results);
         }
       } catch (error) {
-        console.error("Analysis failed:", error);
       }
     } else {
-      console.log(`❌ Post not found for ID: ${postId}`);
     }
   };
 
@@ -1194,7 +1131,6 @@ function App() {
           post={postToShow}
           replyAnalysisResults={replyAnalysisResults}
           onBack={() => {
-            console.log('🔙 User clicked back button');
             setCurrentView("feed");
             setSelectedPost(null);
             setSelectedPostId(null);
@@ -1207,7 +1143,6 @@ function App() {
       );
     } else if (data && selectedPostId) {
       // If we're in analysis view but lost the post object, try to recover
-      console.log('🔄 Recovering post from data...');
       const recoveredPost = data.posts.find(p => p.id === selectedPostId);
       if (recoveredPost) {
         setSelectedPost(recoveredPost);

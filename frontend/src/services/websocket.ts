@@ -35,7 +35,6 @@ class WebSocketService {
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        console.log('WebSocket connected for real-time moderation updates');
         this.isConnecting = false;
         this.clearReconnectTimer();
       };
@@ -47,22 +46,18 @@ class WebSocketService {
             this.notifyListeners(data);
           }
         } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
         }
       };
 
       this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
         this.isConnecting = false;
       };
 
       this.ws.onclose = () => {
-        console.log('WebSocket disconnected');
         this.isConnecting = false;
         this.scheduleReconnect();
       };
     } catch (error) {
-      console.error('Failed to create WebSocket:', error);
       this.isConnecting = false;
       this.scheduleReconnect();
     }
@@ -71,7 +66,6 @@ class WebSocketService {
   private scheduleReconnect() {
     this.clearReconnectTimer();
     this.reconnectTimer = setTimeout(() => {
-      console.log('Attempting to reconnect WebSocket...');
       this.connect();
     }, this.reconnectInterval);
   }
@@ -105,7 +99,6 @@ class WebSocketService {
       try {
         callback(data);
       } catch (error) {
-        console.error('Error in WebSocket listener:', error);
       }
     });
   }
@@ -114,7 +107,6 @@ class WebSocketService {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data));
     } else {
-      console.warn('WebSocket is not connected');
     }
   }
 }
