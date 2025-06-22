@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { Post } from "./types/index";
-import { apiService, type HaterAideAnalysisResponse } from "./services/api";
+import { apiService } from "./services/api";
+import { wsService, type ModerationUpdate, type ModerationAction } from "./services/websocket";
 
 interface MockData {
   posts: Post[];
@@ -15,39 +16,271 @@ function HaterAideAnalysis({
   replyAnalysisResults: any;
   onBack: () => void;
 }) {
-  const [analysisData, setAnalysisData] =
-    useState<HaterAideAnalysisResponse | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [replyModerationData, setReplyModerationData] = useState<any>(null);
+  const [generalSentimentData, setGeneralSentimentData] = useState<any>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [nextStepsData, setNextStepsData] = useState<any>(null);
+  const [replyAnalysisData, setReplyAnalysisData] = useState<any>(null);
+  const [moderationActions, setModerationActions] = useState<Map<string, ModerationAction>>(new Map());
+  const [preloadedModerations, setPreloadedModerations] = useState<Map<string, ModerationAction>>(new Map());
+  const [preloadedSuggestions, setPreloadedSuggestions] = useState<Map<string, string>>(new Map());
 
-  // Analysis will be triggered by the enable button, not automatically
-  // Remove automatic analysis trigger to prevent duplicate runs
+  // Preload moderation based on existing sentiment data
+  useEffect(() => {
+    if (replyAnalysisData?.reply_analyzer_results?.reply_analyses) {
+      const preloadedActions = new Map<string, ModerationAction>();
+      
+      replyAnalysisData.reply_analyzer_results.reply_analyses.forEach((analysis: any) => {
+        const sentiment = analysis.analysis_result?.sentiment;
+        if (sentiment === 'harmful' || sentiment === 'unfriendly') {
+          const action: ModerationAction = {
+            reply_id: analysis.reply_id,
+            action_type: sentiment === 'harmful' ? 'hide' : 'blur',
+            reason: `Content flagged as ${sentiment} by AI analysis`,
+            sentiment: sentiment,
+            timestamp: new Date().toISOString(),
+            status: 'applied'
+          };
+          preloadedActions.set(analysis.reply_id, action);
+        }
+      });
+      
+      setPreloadedModerations(preloadedActions);
+      console.log(`Preloaded ${preloadedActions.size} moderation actions from existing data`);
+    }
+  }, [replyAnalysisData]);
+  
+  // Preload suggested responses based on next steps data
+  useEffect(() => {
+    if (nextStepsData?.next_step_analysis?.recommended_next_steps) {
+      const preloadedResponses = new Map<string, string>();
+      
+      nextStepsData.next_step_analysis.recommended_next_steps.forEach((action: any) => {
+        if (action.reply_id && action.suggested_response) {
+          preloadedResponses.set(action.reply_id, action.suggested_response);
+        }
+      });
+      
+      setPreloadedSuggestions(preloadedResponses);
+    }
+  }, [nextStepsData]);
+  
+  // Set up WebSocket connection and moderation updates
+  useEffect(() => {
+    // Connect to WebSocket
+    wsService.connect();
+    
+    // Subscribe to moderation updates
+    const subscriptionId = 'hateraide-analysis';
+    wsService.subscribe(subscriptionId, (update: ModerationUpdate) => {
+      console.log('Received moderation update:', update);
+      setModerationActions(prev => {
+        const newMap = new Map(prev);
+        newMap.set(update.action.reply_id, update.action);
+        return newMap;
+      });
+    });
+    
+    // Load initial moderation status
+    fetch('http://localhost:8000/api/moderation-status')
+      .then(res => res.json())
+      .then(data => {
+        if (data.moderation_actions) {
+          const actions = new Map<string, ModerationAction>();
+          Object.entries(data.moderation_actions).forEach(([replyId, action]) => {
+            actions.set(replyId, action as ModerationAction);
+          });
+          setModerationActions(actions);
+        }
+      })
+      .catch(err => console.error('Failed to load moderation status:', err));
+    
+    return () => {
+      wsService.unsubscribe(subscriptionId);
+    };
+  }, []);
+
+  // Load analysis data when component mounts AND ensure suggestions are loaded
+  useEffect(() => {
+    const loadAnalysisData = async () => {
+      try {
+        // Load all data in parallel
+        const [sentimentRes, replyRes, nextStepsRes] = await Promise.all([
+          fetch('/general_sentiment_results.json'),
+          fetch('/reply_analyzer_results.json'),
+          fetch('/next_steps.json')
+        ]);
+
+        if (sentimentRes.ok) {
+          const sentimentData = await sentimentRes.json();
+          setGeneralSentimentData(sentimentData);
+        }
+
+        if (replyRes.ok) {
+          const replyData = await replyRes.json();
+          setReplyAnalysisData(replyData);
+        }
+
+        if (nextStepsRes.ok) {
+          const nextSteps = await nextStepsRes.json();
+          setNextStepsData(nextSteps);
+          
+          // Immediately populate suggestions map
+          if (nextSteps?.next_step_analysis?.recommended_next_steps) {
+            const suggestions = new Map<string, string>();
+            nextSteps.next_step_analysis.recommended_next_steps.forEach((action: any) => {
+              if (action.reply_id && action.suggested_response) {
+                suggestions.set(action.reply_id, action.suggested_response);
+              }
+            });
+            setPreloadedSuggestions(suggestions);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load analysis data:', error);
+      }
+    };
+
+    loadAnalysisData();
+  }, []); // Empty array - only run once on mount
 
   // Helper function to get moderation info for a reply
   const getReplyModerationInfo = (replyId: string) => {
+    // First check real-time moderation actions
+    const realtimeAction = moderationActions.get(replyId);
+    if (realtimeAction) return realtimeAction;
+    
+    // Then check preloaded moderations from existing data
+    const preloadedAction = preloadedModerations.get(replyId);
+    if (preloadedAction) return preloadedAction;
+    
+    // Fallback to analysis results
     if (!replyAnalysisResults?.reply_analyses) return null;
 
     const replyAnalysis = replyAnalysisResults.reply_analyses.find(
       (analysis: any) => analysis.reply_id === replyId
     );
 
-    return replyAnalysis?.analysis_result?.moderation_actions || null;
+    const actions = replyAnalysis?.analysis_result?.moderation_actions || [];
+    return actions.length > 0 ? actions[0] : null;
   };
 
-  // Helper function to check if content should be blurred
-  const shouldBlurContent = (replyId: string) => {
-    const moderationActions = getReplyModerationInfo(replyId);
-    return moderationActions?.some(
-      (action: any) => action.tool_name === "blur_text_content"
-    );
+  // Helper function to check if content should be blurred/hidden
+  const shouldModerateContent = (replyId: string): 'blur' | 'hide' | null => {
+    const moderation = getReplyModerationInfo(replyId);
+    if (!moderation) return null;
+    
+    // Check if it's a ModerationAction object
+    if ('action_type' in moderation) {
+      return moderation.action_type;
+    }
+    
+    return null;
   };
 
-  // Helper function to check if media should be minimized
-  const shouldMinimizeMedia = (replyId: string) => {
-    const moderationActions = getReplyModerationInfo(replyId);
-    return moderationActions?.some(
-      (action: any) => action.tool_name === "minimize_media_content"
+  // Helper function to get reply sentiment
+  const getReplySentiment = (replyId: string) => {
+    if (!replyAnalysisData?.reply_analyzer_results?.reply_analyses) return null;
+
+    const replyAnalysis = replyAnalysisData.reply_analyzer_results.reply_analyses.find(
+      (analysis: any) => analysis.reply_id === replyId
     );
+
+    return replyAnalysis?.analysis_result?.sentiment || null;
+  };
+
+  // Helper function to map sentiment to emoji and details
+  const getSentimentDetails = (sentiment: string | null) => {
+    const sentimentMap: { [key: string]: { emoji: string; label: string; description: string; buttonColor: string } } = {
+      friendly: {
+        emoji: "😊",
+        label: "Friendly",
+        description: "Positive engagement with supportive intent",
+        buttonColor: "#42b883"
+      },
+      "silly": {
+        emoji: "😜",
+        label: "Silly",
+        description: "Playful humor that might seem edgy",
+        buttonColor: "#f39c12"
+      },
+      harmful: {
+        emoji: "😠",
+        label: "Harmful",
+        description: "Contains offensive or hurtful content",
+        buttonColor: "#e74c3c"
+      },
+      unfriendly: {
+        emoji: "😒",
+        label: "Unfriendly",
+        description: "Negative but not necessarily harmful",
+        buttonColor: "#e67e22"
+      }
+    };
+
+    return sentimentMap[sentiment || ""] || {
+      emoji: "🤔",
+      label: "Unknown",
+      description: "Sentiment analysis pending",
+      buttonColor: "#95a5a6"
+    };
+  };
+
+  // Helper function to check if a user is notable based on LLM analysis
+  const isNotableUser = (replyId: string) => {
+    if (!replyAnalysisData?.reply_analyzer_results?.reply_analyses) return false;
+    
+    const replyAnalysis = replyAnalysisData.reply_analyzer_results.reply_analyses.find(
+      (analysis: any) => analysis.reply_id === replyId
+    );
+    
+    return replyAnalysis?.analysis_result?.author_important || false;
+  };
+
+  // Helper function to get suggested response from next steps data
+  const getSuggestedResponse = (replyId: string, authorName: string) => {
+    if (!nextStepsData?.next_step_analysis?.recommended_next_steps) {
+      console.log(`📊 No next steps data available yet`);
+      return null;
+    }
+    
+    // First check if this reply is in the important responders list
+    const isImportantResponder = nextStepsData.next_step_analysis.important_responders?.some(
+      (resp: any) => resp.reply_id === replyId
+    );
+    
+    if (!isImportantResponder) {
+      console.log(`📊 Reply ${replyId} not in important responders list`);
+      return null;
+    }
+    
+    // Find recommendation by matching the reply_id (preferred) or author name
+    const recommendation = nextStepsData.next_step_analysis.recommended_next_steps.find(
+      (action: any) => action.reply_id === replyId || action.responder === authorName
+    );
+    
+    console.log(`📊 Found recommendation for ${replyId}:`, recommendation?.suggested_response);
+    return recommendation?.suggested_response || null;
+  };
+
+  // Function to handle notable user reply
+  const handleNotableUserReply = (reply: any) => {
+    if (replyingToId === reply.id) {
+      setReplyingToId(null);
+      setReplyText("");
+    } else {
+      setReplyingToId(reply.id);
+      
+      // Check preloaded map first (just like moderation)
+      const suggestedResponse = preloadedSuggestions.get(reply.id);
+      
+      if (suggestedResponse) {
+        setReplyText(suggestedResponse);
+      } else {
+        setReplyText("");
+      }
+    }
   };
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f0f2f5" }}>
@@ -102,12 +335,9 @@ function HaterAideAnalysis({
 
       <main
         style={{
-          maxWidth: "1200px",
+          maxWidth: "900px",
           margin: "0 auto",
           padding: "20px 16px",
-          display: "grid",
-          gridTemplateColumns: "2fr 1fr",
-          gap: "20px",
         }}
       >
         {/* Main Content - Post and Comments */}
@@ -260,48 +490,90 @@ function HaterAideAnalysis({
                 border: "1px solid #e4e6ea",
               }}
             >
-              {isAnalyzing ? (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    fontSize: "14px",
-                    color: "#65676b",
-                  }}
-                >
+              {generalSentimentData?.general_sentiment_results?.results ? (
+                <div>
                   <div
                     style={{
-                      width: "16px",
-                      height: "16px",
-                      border: "2px solid #1877f2",
-                      borderTop: "2px solid transparent",
-                      borderRadius: "50%",
-                      animation: "spin 1s linear infinite",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      marginBottom: "12px",
                     }}
-                  ></div>
-                  Running HaterAide analysis... This may take a moment.
+                  >
+                    <span
+                      style={{
+                        fontSize: "16px",
+                        padding: "4px 8px",
+                        borderRadius: "4px",
+                        backgroundColor:
+                          generalSentimentData.general_sentiment_results.results.overall_sentiment === "positive"
+                            ? "#d4edda"
+                            : generalSentimentData.general_sentiment_results.results.overall_sentiment === "negative"
+                            ? "#f8d7da"
+                            : "#fff3cd",
+                        color:
+                          generalSentimentData.general_sentiment_results.results.overall_sentiment === "positive"
+                            ? "#155724"
+                            : generalSentimentData.general_sentiment_results.results.overall_sentiment === "negative"
+                            ? "#721c24"
+                            : "#856404",
+                        fontWeight: "600",
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {generalSentimentData.general_sentiment_results.results.overall_sentiment}
+                    </span>
+                    {generalSentimentData.general_sentiment_results.results.engagement_stats.safety_concern === "high" && (
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          backgroundColor: "#f8d7da",
+                          color: "#721c24",
+                          padding: "2px 6px",
+                          borderRadius: "3px",
+                          fontWeight: "600",
+                        }}
+                      >
+                        ⚠️ HIGH SAFETY CONCERN
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ marginBottom: "12px" }}>
+                    <p
+                      style={{
+                        fontSize: "14px",
+                        color: "#1c1e21",
+                        margin: 0,
+                        lineHeight: "1.4",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      {isExpanded 
+                        ? generalSentimentData.general_sentiment_results.results.summary
+                        : `${generalSentimentData.general_sentiment_results.results.summary.substring(0, 150)}${
+                            generalSentimentData.general_sentiment_results.results.summary.length > 150 ? '...' : ''
+                          }`
+                      }
+                    </p>
+                    {generalSentimentData.general_sentiment_results.results.summary.length > 150 && (
+                      <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#1877f2",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                          padding: "0",
+                          textDecoration: "underline",
+                        }}
+                      >
+                        {isExpanded ? "See less" : "See more"}
+                      </button>
+                    )}
+                  </div>
                 </div>
-              ) : analysisData?.status === "success" ? (
-                <p
-                  style={{
-                    fontSize: "14px",
-                    color: "#1c1e21",
-                    margin: 0,
-                  }}
-                >
-                  ✅ Analysis complete! {analysisData.message}
-                </p>
-              ) : analysisData?.status === "error" ? (
-                <p
-                  style={{
-                    fontSize: "14px",
-                    color: "#e74c3c",
-                    margin: 0,
-                  }}
-                >
-                  ❌ Analysis failed: {analysisData.message}
-                </p>
               ) : (
                 <p
                   style={{
@@ -400,9 +672,26 @@ function HaterAideAnalysis({
                           fontWeight: "600",
                           color: "#1c1e21",
                           marginBottom: "2px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
                         }}
                       >
                         {reply.author.name}
+                        {isNotableUser(reply.id) && (
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              backgroundColor: "#1877f2",
+                              color: "white",
+                              padding: "2px 4px",
+                              borderRadius: "3px",
+                              fontWeight: "700",
+                            }}
+                          >
+                            ⭐ NOTABLE
+                          </span>
+                        )}
                       </div>
                       {/* Content with moderation */}
                       <div
@@ -411,101 +700,290 @@ function HaterAideAnalysis({
                           color: "#1c1e21",
                         }}
                       >
-                        {shouldBlurContent(reply.id) ? (
-                          <div
-                            style={{
-                              backgroundColor: "#000",
-                              color: "#000",
-                              borderRadius: "4px",
-                              padding: "4px 8px",
-                              position: "relative",
-                              cursor: "pointer",
-                            }}
-                            title="Content moderated due to harmful content. Click to reveal."
-                            onClick={(e) => {
-                              const target = e.target as HTMLElement;
-                              target.style.backgroundColor = "transparent";
-                              target.style.color = "#1c1e21";
-                              target.title = "";
-                            }}
-                          >
-                            {reply.content}
-                            <div
-                              style={{
-                                position: "absolute",
-                                top: "50%",
-                                left: "50%",
-                                transform: "translate(-50%, -50%)",
-                                color: "#fff",
-                                fontSize: "10px",
-                                fontWeight: "bold",
-                                pointerEvents: "none",
-                              }}
-                            >
-                              🚫 MODERATED
-                            </div>
-                          </div>
-                        ) : (
-                          reply.content
-                        )}
+                        {(() => {
+                          const moderationType = shouldModerateContent(reply.id);
+                          
+                          if (moderationType === 'hide') {
+                            return (
+                              <div
+                                style={{
+                                  backgroundColor: "#1c1e21",
+                                  color: "white",
+                                  borderRadius: "8px",
+                                  padding: "8px 12px",
+                                  position: "relative",
+                                  cursor: "pointer",
+                                  userSelect: "none",
+                                }}
+                                title="Content hidden due to harmful nature. Click to reveal at your own risk."
+                                onClick={(e) => {
+                                  if (confirm('This content has been flagged as harmful. Are you sure you want to view it?')) {
+                                    const container = e.currentTarget;
+                                    container.style.backgroundColor = "transparent";
+                                    container.style.color = "#1c1e21";
+                                    container.innerHTML = reply.content;
+                                  }
+                                }}
+                              >
+                                <div style={{ textAlign: "center" }}>
+                                  ⚠️ Content Hidden - Harmful
+                                  <div style={{ fontSize: "10px", marginTop: "4px" }}>
+                                    Click to reveal
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          } else if (moderationType === 'blur') {
+                            return (
+                              <div
+                                style={{
+                                  filter: "blur(4px)",
+                                  cursor: "pointer",
+                                  position: "relative",
+                                  transition: "filter 0.3s ease",
+                                }}
+                                title="Content blurred due to unfriendly nature. Click to unblur."
+                                onClick={(e) => {
+                                  const target = e.currentTarget;
+                                  target.style.filter = "none";
+                                  target.title = "";
+                                  // Remove the overlay div
+                                  const overlay = target.querySelector('div[style*="absolute"]');
+                                  if (overlay) overlay.remove();
+                                }}
+                              >
+                                {reply.content}
+                                <div
+                                  style={{
+                                    position: "absolute",
+                                    top: "50%",
+                                    left: "50%",
+                                    transform: "translate(-50%, -50%)",
+                                    backgroundColor: "rgba(255, 255, 255, 0.9)",
+                                    padding: "4px 8px",
+                                    borderRadius: "4px",
+                                    fontSize: "10px",
+                                    fontWeight: "bold",
+                                    pointerEvents: "none",
+                                  }}
+                                >
+                                  😐 UNFRIENDLY
+                                </div>
+                              </div>
+                            );
+                          } else {
+                            return reply.content;
+                          }
+                        })()}
                       </div>
 
                       {/* Media with moderation */}
                       {reply.media_url && (
                         <div style={{ marginTop: "8px" }}>
-                          {shouldMinimizeMedia(reply.id) ? (
-                            <div
-                              style={{
-                                width: "100px",
-                                height: "60px",
-                                backgroundColor: "#f0f0f0",
-                                borderRadius: "8px",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                cursor: "pointer",
-                                border: "2px solid #e74c3c",
-                              }}
-                              title="Media minimized due to harmful content. Click to expand."
-                              onClick={(e) => {
-                                const target = e.target as HTMLElement;
-                                target.outerHTML = `<img src="${
-                                  reply.media_url
-                                }" alt="${
-                                  reply.content || "Media content"
-                                }" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: cover;" />`;
-                              }}
-                            >
-                              <div
-                                style={{
-                                  textAlign: "center",
-                                  fontSize: "10px",
-                                  color: "#e74c3c",
-                                  fontWeight: "bold",
-                                }}
-                              >
-                                🚫
-                                <br />
-                                MEDIA
-                                <br />
-                                HIDDEN
-                              </div>
-                            </div>
-                          ) : (
-                            <img
-                              src={reply.media_url}
-                              alt={reply.content || "Media content"}
-                              style={{
-                                maxWidth: "200px",
-                                maxHeight: "200px",
-                                borderRadius: "8px",
-                                objectFit: "cover",
-                              }}
-                            />
-                          )}
+                          {(() => {
+                            const moderationType = shouldModerateContent(reply.id);
+                            
+                            if (moderationType === 'hide') {
+                              return (
+                                <div
+                                  style={{
+                                    width: "200px",
+                                    height: "120px",
+                                    backgroundColor: "#1c1e21",
+                                    borderRadius: "8px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: "pointer",
+                                    color: "white",
+                                  }}
+                                  title="Media hidden due to harmful content. Click to reveal at your own risk."
+                                  onClick={(e) => {
+                                    if (confirm('This media has been flagged as harmful. Are you sure you want to view it?')) {
+                                      const container = e.currentTarget;
+                                      const img = document.createElement('img');
+                                      img.src = reply.media_url!;
+                                      img.alt = reply.content || "Media content";
+                                      img.style.maxWidth = "200px";
+                                      img.style.maxHeight = "200px";
+                                      img.style.borderRadius = "8px";
+                                      img.style.objectFit = "cover";
+                                      container.replaceWith(img);
+                                    }
+                                  }}
+                                >
+                                  <div style={{ textAlign: "center" }}>
+                                    ⚠️ Media Hidden
+                                    <div style={{ fontSize: "10px", marginTop: "4px" }}>
+                                      Harmful Content
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            } else if (moderationType === 'blur') {
+                              return (
+                                <div style={{ position: "relative", display: "inline-block" }}>
+                                  <img
+                                    src={reply.media_url}
+                                    alt={reply.content || "Media content"}
+                                    style={{
+                                      maxWidth: "200px",
+                                      maxHeight: "200px",
+                                      borderRadius: "8px",
+                                      objectFit: "cover",
+                                      filter: "blur(8px)",
+                                      cursor: "pointer",
+                                      transition: "filter 0.3s ease",
+                                    }}
+                                    title="Media blurred due to unfriendly content. Click to unblur."
+                                    onClick={(e) => {
+                                      const target = e.currentTarget;
+                                      target.style.filter = "none";
+                                      target.title = "";
+                                      const overlay = target.nextElementSibling;
+                                      if (overlay) overlay.remove();
+                                    }}
+                                  />
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      top: "50%",
+                                      left: "50%",
+                                      transform: "translate(-50%, -50%)",
+                                      backgroundColor: "rgba(255, 255, 255, 0.9)",
+                                      padding: "8px 12px",
+                                      borderRadius: "4px",
+                                      fontSize: "12px",
+                                      fontWeight: "bold",
+                                      pointerEvents: "none",
+                                    }}
+                                  >
+                                    😐 UNFRIENDLY
+                                  </div>
+                                </div>
+                              );
+                            } else {
+                              return (
+                                <img
+                                  src={reply.media_url}
+                                  alt={reply.content || "Media content"}
+                                  style={{
+                                    maxWidth: "200px",
+                                    maxHeight: "200px",
+                                    borderRadius: "8px",
+                                    objectFit: "cover",
+                                  }}
+                                />
+                              );
+                            }
+                          })()}
                         </div>
                       )}
                     </div>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#65676b",
+                        marginTop: "4px",
+                        display: "flex",
+                        gap: "12px",
+                      }}
+                    >
+                      <button
+                        onClick={() => handleNotableUserReply(reply)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#1877f2",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                          padding: "0",
+                        }}
+                      >
+                        Reply
+                      </button>
+                      <span style={{ color: "#65676b" }}>·</span>
+                      <span>2m</span>
+                    </div>
+                    
+                    {/* Reply input field */}
+                    {replyingToId === reply.id && (
+                      <div
+                        style={{
+                          marginTop: "8px",
+                          display: "flex",
+                          gap: "8px",
+                          alignItems: "flex-start",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "24px",
+                            height: "24px",
+                            borderRadius: "50%",
+                            backgroundColor: "#1877f2",
+                            color: "white",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "10px",
+                            fontWeight: "bold",
+                            flexShrink: 0,
+                          }}
+                        >
+                          You
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          {isNotableUser(reply.id) && preloadedSuggestions.has(reply.id) && (
+                            <div
+                              style={{
+                                fontSize: "11px",
+                                color: "#1877f2",
+                                marginBottom: "4px",
+                                paddingLeft: "12px",
+                                fontWeight: "600",
+                              }}
+                            >
+                              ⭐ Notable User - AI-Suggested Reply
+                            </div>
+                          )}
+                          <input
+                            type="text"
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            placeholder={`Reply to ${reply.author.name}...`}
+                            style={{
+                              width: "100%",
+                              padding: "8px 12px",
+                              borderRadius: "20px",
+                              border: isNotableUser(reply.id) ? "2px solid #1877f2" : "1px solid #e4e6ea",
+                              fontSize: "14px",
+                              backgroundColor: "#f0f2f5",
+                              outline: "none",
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && replyText.trim()) {
+                                console.log(`Reply to ${reply.id}: ${replyText}`);
+                                setReplyingToId(null);
+                                setReplyText("");
+                              }
+                            }}
+                            autoFocus
+                          />
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#65676b",
+                              marginTop: "4px",
+                              paddingLeft: "12px",
+                            }}
+                          >
+                            Press Enter to send
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -531,152 +1009,39 @@ function HaterAideAnalysis({
                     Hater Meter
                   </div>
 
-                  {/* Emoji indicator */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    <span style={{ fontSize: "24px" }}>😊</span>
-                    <span
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: "600",
-                        color: "#1c1e21",
-                      }}
-                    >
-                      Friendly
-                    </span>
-                  </div>
+                  {(() => {
+                    const sentiment = getReplySentiment(reply.id);
+                    const sentimentDetails = getSentimentDetails(sentiment);
+                    
+                    return (
+                      <>
+                        {/* Emoji indicator */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            marginBottom: "8px",
+                          }}
+                        >
+                          <span style={{ fontSize: "24px" }}>{sentimentDetails.emoji}</span>
+                          <span
+                            style={{
+                              fontSize: "13px",
+                              fontWeight: "600",
+                              color: "#1c1e21",
+                            }}
+                          >
+                            {sentimentDetails.label}
+                          </span>
+                        </div>
 
-                  {/* Brief comment */}
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      color: "#65676b",
-                      marginBottom: "8px",
-                      lineHeight: "1.3",
-                    }}
-                  >
-                    Positive engagement with humorous intent
-                  </div>
-
-                  {/* Action button */}
-                  <button
-                    style={{
-                      backgroundColor: "#42b883",
-                      color: "white",
-                      border: "none",
-                      padding: "6px 12px",
-                      borderRadius: "4px",
-                      fontSize: "11px",
-                      fontWeight: "600",
-                      cursor: "pointer",
-                      width: "100%",
-                    }}
-                  >
-                    Keep Visible
-                  </button>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* Sidebar - Analysis Tools */}
-        <div>
-          <div
-            style={{
-              backgroundColor: "white",
-              borderRadius: "8px",
-              boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
-              padding: "16px",
-            }}
-          >
-            <h3
-              style={{
-                fontSize: "16px",
-                fontWeight: "600",
-                color: "#1c1e21",
-                marginBottom: "16px",
-              }}
-            >
-              Analysis Tools
-            </h3>
-
-            <div style={{ marginBottom: "16px" }}>
-              <button
-                style={{
-                  backgroundColor: "#1877f2",
-                  color: "white",
-                  border: "none",
-                  padding: "8px 16px",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  width: "100%",
-                  marginBottom: "8px",
-                }}
-              >
-                🔄 Refresh Analysis
-              </button>
-
-              <button
-                style={{
-                  backgroundColor: "#42b883",
-                  color: "white",
-                  border: "none",
-                  padding: "8px 16px",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  width: "100%",
-                  marginBottom: "8px",
-                }}
-              >
-                👁️ Show All Hidden
-              </button>
-
-              <button
-                style={{
-                  backgroundColor: "#e74c3c",
-                  color: "white",
-                  border: "none",
-                  padding: "8px 16px",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  width: "100%",
-                }}
-              >
-                🚫 Hide All Harmful
-              </button>
-            </div>
-
-            <div
-              style={{
-                backgroundColor: "#f8f9fa",
-                borderRadius: "6px",
-                padding: "12px",
-                fontSize: "12px",
-                color: "#65676b",
-              }}
-            >
-              <strong>Stats:</strong>
-              <br />
-              Total Comments: {post.replies.length}
-              <br />
-              Harmful: 2<br />
-              Friendly: {post.replies.length - 4}
-              <br />
-              Unfriendly: 2
-            </div>
           </div>
         </div>
       </main>
@@ -687,10 +1052,44 @@ function HaterAideAnalysis({
 function App() {
   const [data, setData] = useState<MockData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<"feed" | "analysis">("feed");
+  
+  // Initialize view state from localStorage to persist across refreshes
+  const [currentView, setCurrentView] = useState<"feed" | "analysis">(() => {
+    const saved = localStorage.getItem('hateraide_view');
+    return saved === 'analysis' ? 'analysis' : 'feed';
+  });
+  
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(() => {
+    return localStorage.getItem('hateraide_post_id');
+  });
+  
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [replyAnalysisResults, setReplyAnalysisResults] = useState<any>(null);
+  const [replyAnalysisData, setReplyAnalysisData] = useState<any>(null);
+  const [hasLoadedInitialAnalysis, setHasLoadedInitialAnalysis] = useState(false);
+  
+  // Persist view state changes to localStorage
+  useEffect(() => {
+    localStorage.setItem('hateraide_view', currentView);
+    if (selectedPostId) {
+      localStorage.setItem('hateraide_post_id', selectedPostId);
+    } else {
+      localStorage.removeItem('hateraide_post_id');
+    }
+  }, [currentView, selectedPostId]);
+  
+  // Recover selectedPost from data when component mounts
+  useEffect(() => {
+    if (data && selectedPostId && !selectedPost) {
+      const post = data.posts.find(p => p.id === selectedPostId);
+      if (post) {
+        setSelectedPost(post);
+      }
+    }
+  }, [data, selectedPostId, selectedPost]);
 
   useEffect(() => {
+    // Load mock data once on mount
     fetch("/mock_data.json")
       .then((response) => response.json())
       .then((data) => {
@@ -701,9 +1100,39 @@ function App() {
         console.error("Error:", error);
         setLoading(false);
       });
-  }, []);
+  }, []); // Empty dependency array - only run once
 
-  const [replyAnalysisResults, setReplyAnalysisResults] = useState<any>(null);
+  // Load reply analysis data for notable user detection in main app
+  // Only load once on initial mount when in feed view
+  useEffect(() => {
+    // Only load if we're in feed view and haven't loaded yet
+    if (currentView === "feed" && !replyAnalysisData) {
+      const loadReplyAnalysisData = async () => {
+        try {
+          const response = await fetch('/reply_analyzer_results.json');
+          if (response.ok) {
+            const data = await response.json();
+            setReplyAnalysisData(data);
+          }
+        } catch (error) {
+          console.error('Failed to load reply analysis data:', error);
+        }
+      };
+
+      loadReplyAnalysisData();
+    }
+  }, []); // Empty dependency array - only run once on mount
+
+  // Helper function to check if a user is notable based on LLM analysis (for App component)
+  const isNotableUser = (replyId: string) => {
+    if (!replyAnalysisData?.reply_analyzer_results?.reply_analyses) return false;
+    
+    const replyAnalysis = replyAnalysisData.reply_analyzer_results.reply_analyses.find(
+      (analysis: any) => analysis.reply_id === replyId
+    );
+    
+    return replyAnalysis?.analysis_result?.author_important || false;
+  };
 
   const handleEnableHaterAide = async (postId: string) => {
     // Find the post and switch UI immediately
@@ -712,11 +1141,31 @@ function App() {
 
     if (post) {
       console.log(`🎯 Setting selectedPost and changing view...`);
-      // Switch UI immediately
+      // Switch UI immediately and store the post ID to prevent loss
       setSelectedPost(post);
+      setSelectedPostId(postId);
       setCurrentView("analysis");
 
-      // Run analysis ONCE
+      // If we haven't loaded initial analysis data yet, do it now for instant display
+      if (!hasLoadedInitialAnalysis) {
+        try {
+          // Try to load existing analysis data immediately for "cheat loading"
+          const replyResponse = await fetch('/reply_analyzer_results.json?' + Date.now());
+          if (replyResponse.ok) {
+            const replyData = await replyResponse.json();
+            if (replyData && Object.keys(replyData).length > 0) {
+              setReplyAnalysisData(replyData);
+              setReplyAnalysisResults(replyData.reply_analyzer_results);
+              console.log('✅ Loaded existing analysis data for instant moderation display');
+            }
+          }
+        } catch (error) {
+          console.log('No existing analysis data found, will generate new');
+        }
+        setHasLoadedInitialAnalysis(true);
+      }
+
+      // Run analysis (will update with fresh data)
       try {
         console.log(`🛡️ HaterAide enabled for post: ${postId}`);
         const result = await apiService.runHaterAideAnalysis(postId);
@@ -734,22 +1183,40 @@ function App() {
     }
   };
 
-  // Handle view switching
-  if (currentView === "analysis" && selectedPost) {
-    return (
-      <HaterAideAnalysis
-        post={selectedPost}
-        replyAnalysisResults={replyAnalysisResults}
-        onBack={() => {
-          setCurrentView("feed");
-          setSelectedPost(null);
-          setReplyAnalysisResults(null);
-        }}
-      />
-    );
+  // Handle view switching - ALWAYS show analysis view if we're in it
+  if (currentView === "analysis") {
+    // If we have a selectedPostId but lost selectedPost, try to recover it
+    const postToShow = selectedPost || (selectedPostId && data?.posts.find(p => p.id === selectedPostId));
+    
+    if (postToShow) {
+      return (
+        <HaterAideAnalysis
+          post={postToShow}
+          replyAnalysisResults={replyAnalysisResults}
+          onBack={() => {
+            console.log('🔙 User clicked back button');
+            setCurrentView("feed");
+            setSelectedPost(null);
+            setSelectedPostId(null);
+            setReplyAnalysisResults(null);
+            // Clear localStorage
+            localStorage.removeItem('hateraide_view');
+            localStorage.removeItem('hateraide_post_id');
+          }}
+        />
+      );
+    } else if (data && selectedPostId) {
+      // If we're in analysis view but lost the post object, try to recover
+      console.log('🔄 Recovering post from data...');
+      const recoveredPost = data.posts.find(p => p.id === selectedPostId);
+      if (recoveredPost) {
+        setSelectedPost(recoveredPost);
+      }
+    }
   }
 
-  if (loading) {
+  // Only show loading screen if we're in feed view
+  if (loading && currentView === "feed") {
     return (
       <div
         style={{
@@ -1006,7 +1473,7 @@ function App() {
                   >
                     {Object.entries(post.reactions)
                       .slice(0, 3)
-                      .map(([emoji, count]) => (
+                      .map(([emoji, _count]) => (
                         <span
                           key={emoji}
                           style={{
@@ -1102,8 +1569,8 @@ function App() {
                 ↗️ Share
               </button>
 
-              {/* HaterAide button - only show for viral posts */}
-              {post.total_replies && post.total_replies > 100 && (
+              {/* HaterAide button - show for posts with multiple replies */}
+              {(post.total_replies && post.total_replies > 10) || (post.replies && post.replies.length > 5) ? (
                 <button
                   onClick={() => handleEnableHaterAide(post.id)}
                   style={{
@@ -1135,7 +1602,7 @@ function App() {
                 >
                   🛡️ Enable HaterAide
                 </button>
-              )}
+              ) : null}
             </div>
 
             {/* Comments section */}
@@ -1272,8 +1739,8 @@ function App() {
                           paddingLeft: "12px",
                         }}
                       >
-                        Like · Reply · {reply.sentiment} · {reply.language}
-                        {reply.author.important && " · ⭐ Notable"}
+                        Like · Reply · {reply.language}
+                        {isNotableUser(reply.id) && " · ⭐ Notable"}
                       </div>
                     </div>
                   </div>

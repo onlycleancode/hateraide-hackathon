@@ -15,7 +15,7 @@ class Reply(BaseModel):
     media_url: Optional[str] = None
     author: Author
     language: str = "en"
-    sentiment: Literal["friendly", "unfriendly", "harmful", "in-jest", "unknown"] = "unknown"
+    sentiment: Literal["friendly", "unfriendly", "harmful", "silly", "unknown"] = "unknown"
     hidden: bool = False
     timestamp: Optional[str] = None
 
@@ -43,7 +43,7 @@ class PostAnalysisResult(BaseModel):
 
 class ReplyAnalysisResult(BaseModel):
     reply_id: str
-    sentiment: Literal["friendly", "unfriendly", "harmful", "in-jest"]
+    sentiment: Literal["friendly", "unfriendly", "harmful", "silly"]
     justification: str
     should_hide: bool
     author_important: bool

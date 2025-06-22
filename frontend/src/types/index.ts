@@ -2,7 +2,6 @@ export interface Author {
   name: string;
   avatar: string;
   verified?: boolean;
-  important?: boolean;
 }
 
 export interface Reply {
@@ -12,7 +11,6 @@ export interface Reply {
   media_url?: string;
   author: Author;
   language: string;
-  sentiment: 'friendly' | 'unfriendly' | 'harmful' | 'in-jest' | 'unknown';
   hidden: boolean;
 }
 

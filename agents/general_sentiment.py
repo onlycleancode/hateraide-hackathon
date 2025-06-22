@@ -68,7 +68,7 @@ Write a paragraph that captures the overall vibe and reception. Think "friend ca
         self.logger.info(f"🌡️ Starting general sentiment analysis for post with {len(reply_analyses)} replies")
         
         # Count sentiment distribution
-        sentiment_counts = {"friendly": 0, "unfriendly": 0, "harmful": 0, "in-jest": 0}
+        sentiment_counts = {"friendly": 0, "unfriendly": 0, "harmful": 0, "silly": 0}
         important_authors = []
         
         for reply in reply_analyses:
@@ -89,7 +89,7 @@ Confidence: {post_analysis.confidence_score}
 REPLY BREAKDOWN:
 Total Replies Analyzed: {len(reply_analyses)}
 Friendly: {sentiment_counts['friendly']}
-In-Jest/Humorous: {sentiment_counts['in-jest']}
+Silly/Humorous: {sentiment_counts['silly']}
 Unfriendly: {sentiment_counts['unfriendly']}
 Harmful: {sentiment_counts['harmful']}
 Important/Notable Authors: {len(important_authors)}
@@ -111,12 +111,12 @@ SAMPLE REPLY INSIGHTS:"""
         
         # Use regular chat completion instead of structured output to avoid tools validation issues
         regular_result = await llama_client.chat_completion(
-            messages=messages,
-            tools=None  # Explicitly set to None to avoid tools validation
+            messages=messages
+            # Not passing tools parameter at all to avoid validation issues
         )
         
         # Determine overall sentiment based on reply distribution with harmful weighting
-        total_positive = sentiment_counts['friendly'] + sentiment_counts['in-jest']
+        total_positive = sentiment_counts['friendly'] + sentiment_counts['silly']
         # Weight harmful content more heavily (count each harmful comment as 3 negatives)
         weighted_harmful = sentiment_counts['harmful'] * 3
         total_negative = sentiment_counts['unfriendly'] + weighted_harmful
@@ -147,8 +147,8 @@ SAMPLE REPLY INSIGHTS:"""
         engagement_stats = {
             "total_replies": len(reply_analyses),
             "sentiment_distribution": sentiment_counts,
-            "engagement_rate": round((sentiment_counts['friendly'] + sentiment_counts['in-jest']) / total_replies * 100, 1),
-            "humor_rate": round(sentiment_counts['in-jest'] / total_replies * 100, 1),
+            "engagement_rate": round((sentiment_counts['friendly'] + sentiment_counts['silly']) / total_replies * 100, 1),
+            "humor_rate": round(sentiment_counts['silly'] / total_replies * 100, 1),
             "negativity_rate": round((sentiment_counts['unfriendly'] + sentiment_counts['harmful']) / total_replies * 100, 1),
             "harmful_content_rate": round(sentiment_counts['harmful'] / total_replies * 100, 1),
             "safety_concern": "high" if sentiment_counts['harmful'] >= 2 or sentiment_counts['harmful'] > total_replies * 0.15 else "low" if sentiment_counts['harmful'] == 0 else "medium"
@@ -156,7 +156,7 @@ SAMPLE REPLY INSIGHTS:"""
         
         return GeneralSentimentResult(
             overall_sentiment=overall_sentiment,
-            summary=regular_result["content"][:300] + "..." if len(regular_result["content"]) > 300 else regular_result["content"],
+            summary=regular_result["content"],
             reasons_for_upset=[],
             notable_figures=[],
             engagement_stats=engagement_stats

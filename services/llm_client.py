@@ -60,12 +60,17 @@ class LlamaClient:
             raise Exception("LLAMA_API_KEY not set in environment variables")
         
         try:
-            completion = self.client.chat.completions.create(
-                model=model or self.default_model,
-                messages=messages,
-                tools=tools,
-                temperature=temperature
-            )
+            # Only pass tools parameter if it's not None to avoid validation errors
+            params = {
+                "model": model or self.default_model,
+                "messages": messages,
+                "temperature": temperature
+            }
+            
+            if tools is not None:
+                params["tools"] = tools
+            
+            completion = self.client.chat.completions.create(**params)
             return {
                 "content": completion.choices[0].message.content,
                 "tool_calls": completion.choices[0].message.tool_calls,
@@ -78,18 +83,30 @@ class LlamaClient:
         self,
         messages: List[Dict[str, Any]],
         response_format: Any,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        tools: Optional[List[Dict]] = None
     ) -> Any:
         if not self.client:
             raise Exception("LLAMA_API_KEY not set in environment variables")
         
         try:
-            completion = self.client.beta.chat.completions.parse(
-                model=model or self.default_model,
-                messages=messages,
-                response_format=response_format
-            )
-            return completion.choices[0].message.parsed
+            params = {
+                "model": model or self.default_model,
+                "messages": messages,
+                "response_format": response_format
+            }
+            
+            if tools is not None:
+                params["tools"] = tools
+                params["tool_choice"] = "auto"  # Let the model decide when to use tools
+            
+            completion = self.client.beta.chat.completions.parse(**params)
+            
+            # Return both parsed result and tool calls
+            return {
+                "parsed": completion.choices[0].message.parsed,
+                "tool_calls": completion.choices[0].message.tool_calls
+            }
         except Exception as e:
             raise Exception(f"Structured output error: {str(e)}")
     

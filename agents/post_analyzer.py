@@ -89,13 +89,17 @@ Post Type: {post.type}"""
             )
             
             self.logger.info("✅ Structured output successful!")
-            self.logger.info(f"📊 Analysis result - Sentiment: {result.sentiment}, Confidence: {result.confidence_score}")
+            
+            # Extract the parsed result from the dictionary
+            parsed_result = result["parsed"]
+            
+            self.logger.info(f"📊 Analysis result - Sentiment: {parsed_result.sentiment}, Confidence: {parsed_result.confidence_score}")
             
             analysis_result = PostAnalysisResult(
-                analysis=result.analysis,
-                sentiment=result.sentiment,
-                confidence_score=result.confidence_score,
-                category=result.category
+                analysis=parsed_result.analysis,
+                sentiment=parsed_result.sentiment,
+                confidence_score=parsed_result.confidence_score,
+                category=parsed_result.category
             )
             
             self.logger.info("🎯 Post analysis completed successfully")

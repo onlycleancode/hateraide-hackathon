@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from models.schemas import (
     PostAnalysisRequest, ReplyAnalysisRequest, 
     PostAnalysisResult, ReplyAnalysisResult, 
@@ -9,6 +9,7 @@ from agents.post_analyzer import PostAnalyzerAgent
 from agents.reply_analyzer import ReplyAnalyzerAgent
 from agents.general_sentiment import GeneralSentimentAgent
 from agents.next_step import NextStepAgent
+from services.content_moderation import content_moderation_service
 from typing import List
 import json
 import logging
@@ -19,6 +20,13 @@ router = APIRouter()
 # Set up logging
 logger = logging.getLogger("hateraide_api")
 logger.setLevel(logging.INFO)
+
+def _get_moderation_actions(reply_id: str) -> List[dict]:
+    """Get moderation actions for a specific reply"""
+    action = content_moderation_service.get_moderation_status(reply_id)
+    if action:
+        return [action]
+    return []
 
 @router.get("/mock-data")
 async def get_mock_data():
@@ -154,7 +162,52 @@ async def enable_hateraide(request: EnableHaterAideRequest):
                 category="other"
             )
             reply_agent = ReplyAnalyzerAgent()
-            return await reply_agent.analyze_replies(post_obj, replies, basic_post_context)
+            
+            # Define the frontend reply filename for this function
+            reply_filename = "reply_analyzer_results.json"
+            frontend_reply_filename = f"frontend/public/{reply_filename}"
+            
+            # Initialize the reply analyzer results file with pending status
+            initial_reply_output = {
+                "hateraide_session": {
+                    "session_id": f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                    "timestamp": datetime.now().isoformat(),
+                    "trigger": "enable_hateraide_button",
+                    "status": "in_progress",
+                    "post_id": post_id
+                },
+                "reply_analyzer_results": {
+                    "agent": "reply_analyzer",
+                    "analysis_timestamp": datetime.now().isoformat(),
+                    "llm_endpoint": "llama-4-scout-17b-16e-instruct-fp8",
+                    "total_replies_analyzed": 0,
+                    "replies_with_harmful_content": 0,
+                    "important_authors_found": 0,
+                    "reply_analyses": [],
+                    "status": "in_progress"
+                },
+                "post_context": {
+                    "post_id": post_data["id"],
+                    "post_content": post_data["content"],
+                    "post_category": "pending",
+                    "post_sentiment": "pending",
+                    "total_replies": len(replies)
+                },
+                "system_info": {
+                    "backend_version": "1.0.0",
+                    "python_agent": "reply_analyzer",
+                    "llm_model": "Llama-4-Scout-17B-16E-Instruct-FP8",
+                    "source": "frontend/public/mock_data.json",
+                    "processing_method": "async_batch_processing"
+                }
+            }
+            
+            # Save initial empty results
+            with open(frontend_reply_filename, 'w') as f:
+                json.dump(initial_reply_output, f, indent=2)
+            
+            # Pass the filename to the agent so it can update incrementally
+            return await reply_agent.analyze_replies_with_updates(post_obj, replies, basic_post_context, frontend_reply_filename)
         
         # Execute both analyses concurrently
         post_result, reply_results = await asyncio.gather(
@@ -187,11 +240,15 @@ async def enable_hateraide(request: EnableHaterAideRequest):
         from agents.next_step import NextStepAgent
         next_step_agent = NextStepAgent()
         
+        # Create a mapping of reply_id to original reply data
+        reply_id_to_data = {reply.id: reply for reply in replies}
+        
         # Check if reply_analyzer_results.json exists, otherwise use current results
         import os
-        if os.path.exists("reply_analyzer_results.json"):
-            logger.info("📁 Using existing reply_analyzer_results.json for next step analysis")
-            with open("reply_analyzer_results.json", 'r') as f:
+        frontend_reply_path = "frontend/public/reply_analyzer_results.json"
+        if os.path.exists(frontend_reply_path):
+            logger.info(f"📁 Using existing {frontend_reply_path} for next step analysis")
+            with open(frontend_reply_path, 'r') as f:
                 reply_analyzer_data = json.load(f)
         else:
             # Create reply analyzer data structure from current results
@@ -220,7 +277,9 @@ async def enable_hateraide(request: EnableHaterAideRequest):
                                 "should_hide": result.should_hide,
                                 "author_important": result.author_important,
                                 "moderation_actions": []
-                            }
+                            },
+                            # Add original reply data
+                            "original_reply": reply_id_to_data[result.reply_id].dict() if result.reply_id in reply_id_to_data else {}
                         }
                         for result in reply_results
                     ],
@@ -302,8 +361,10 @@ async def enable_hateraide(request: EnableHaterAideRequest):
                             "justification": result.justification,
                             "should_hide": result.should_hide,
                             "author_important": result.author_important,
-                            "moderation_actions": []  # Will be populated by tools if used
-                        }
+                            "moderation_actions": _get_moderation_actions(result.reply_id)
+                        },
+                        # Add original reply data
+                        "original_reply": reply_id_to_data[result.reply_id].dict() if result.reply_id in reply_id_to_data else {}
                     }
                     for result in reply_results
                 ],
@@ -361,26 +422,37 @@ async def enable_hateraide(request: EnableHaterAideRequest):
             }
         }
         
-        # Save to JSON files in root directory
-        post_filename = f"post_analyzer_results.json"
-        reply_filename = f"reply_analyzer_results.json"
-        general_filename = f"general_sentiment_results.json"
-        next_steps_filename = f"next_steps.json"
+        # Define filenames
+        post_filename = "post_analyzer_results.json"
+        reply_filename = "reply_analyzer_results.json"
+        general_filename = "general_sentiment_results.json"
+        next_steps_filename = "next_steps.json"
         
+        # Save to BOTH root directory AND frontend/public for consistency
+        # Root directory files
         with open(post_filename, 'w') as f:
             json.dump(analysis_output, f, indent=2)
-        
-        with open(reply_filename, 'w') as f:
-            json.dump(reply_analysis_output, f, indent=2)
         
         with open(general_filename, 'w') as f:
             json.dump(general_sentiment_output, f, indent=2)
         
-        # Note: next_steps.json is already saved by the NextStepAgent
-        logger.info(f"💾 Post analysis results saved to {post_filename}")
-        logger.info(f"💾 Reply analysis results saved to {reply_filename}")
-        logger.info(f"💾 General sentiment results saved to {general_filename}")
-        logger.info(f"💾 Next steps analysis saved to {next_steps_filename}")
+        # Frontend directory files (UI will read from here)
+        frontend_post_filename = f"frontend/public/{post_filename}"
+        frontend_general_filename = f"frontend/public/{general_filename}"
+        
+        with open(frontend_post_filename, 'w') as f:
+            json.dump(analysis_output, f, indent=2)
+        
+        with open(frontend_general_filename, 'w') as f:
+            json.dump(general_sentiment_output, f, indent=2)
+        
+        # Note: reply_analyzer_results.json is already saved by analyze_replies_with_updates to frontend/public/
+        # Note: next_steps.json is already saved by the NextStepAgent to frontend/public/
+        
+        logger.info(f"💾 Post analysis results saved to {post_filename} and {frontend_post_filename}")
+        logger.info(f"💾 Reply analysis incrementally saved to frontend/public/{reply_filename}")
+        logger.info(f"💾 General sentiment results saved to {general_filename} and {frontend_general_filename}")
+        logger.info(f"💾 Next steps analysis saved to frontend/public/{next_steps_filename}")
         logger.info("✅ HaterAide analysis completed successfully!")
         
         # Return response for frontend
@@ -509,6 +581,56 @@ async def generate_next_steps(data: dict):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Next steps generation failed: {str(e)}")
+
+@router.post("/get-reply-suggestion")
+async def get_reply_suggestion(request: dict):
+    """Get AI-generated reply suggestion for a notable user's comment"""
+    try:
+        reply_id = request.get("reply_id")
+        author_name = request.get("author_name")
+        comment_content = request.get("comment_content")
+        post_context = request.get("post_context", {})
+        
+        if not all([reply_id, author_name, comment_content]):
+            raise HTTPException(status_code=400, detail="Missing required fields: reply_id, author_name, comment_content")
+        
+        next_step_agent = NextStepAgent()
+        suggestion = await next_step_agent.get_reply_suggestion(
+            reply_id=reply_id,
+            author_name=author_name,
+            comment_content=comment_content,
+            post_context=post_context
+        )
+        
+        return suggestion
+        
+    except Exception as e:
+        logger.error(f"❌ Reply suggestion failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Reply suggestion failed: {str(e)}")
+
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for real-time content moderation updates"""
+    await websocket.accept()
+    content_moderation_service.add_websocket(websocket)
+    
+    try:
+        while True:
+            # Keep connection alive and handle any incoming messages
+            data = await websocket.receive_text()
+            # Echo back or handle commands if needed
+            await websocket.send_text(f"Echo: {data}")
+    except WebSocketDisconnect:
+        content_moderation_service.remove_websocket(websocket)
+        logger.info("WebSocket client disconnected")
+
+@router.get("/moderation-status")
+async def get_moderation_status():
+    """Get current moderation status for all replies"""
+    return {
+        "moderation_actions": content_moderation_service.get_all_moderation_actions(),
+        "timestamp": datetime.now().isoformat()
+    }
 
 @router.post("/process-full-analysis")
 async def process_full_analysis(request: PostAnalysisRequest):

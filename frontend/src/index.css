@@ -1,3 +1,35 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Custom blur utilities for content moderation */
+.blur-sm {
+  filter: blur(4px);
+}
+
+.blur-md {
+  filter: blur(8px);
+}
+
+.blur-lg {
+  filter: blur(12px);
+}
+
+/* Transition for smooth blur/unblur effects */
+.blur-transition {
+  transition: filter 0.3s ease-in-out;
+}
+
+/* Animation for moderation warnings */
+@keyframes pulse-warning {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.animate-pulse-warning {
+  animation: pulse-warning 2s ease-in-out infinite;
+}

@@ -12,69 +12,61 @@
       },
       "timestamp": "2024-01-15T14:30:00Z",
       "reactions": {
-        "😂": 45621,
-        "❤️": 12893,
-        "😮": 8732,
-        "👍": 23456,
-        "😢": 5643,
-        "😡": 1234
+        "\ud83d\ude02": 45621,
+        "\u2764\ufe0f": 12893,
+        "\ud83d\ude2e": 8732,
+        "\ud83d\udc4d": 23456,
+        "\ud83d\ude22": 5643,
+        "\ud83d\ude21": 1234
       },
-      "total_replies": 3291,
+      "total_replies": 15,
       "replies": [
         {
           "id": "reply_1_1",
-          "type": "text",
-          "content": "BROOOO 😂😂😂 this is literally my dog every Friday at 5pm",
-          "media_url": null,
+          "type": "image",
+          "content": "BROOOO \ud83d\ude02\ud83d\ude02\ud83d\ude02 this is literally my dog every Friday at 5pm (see pic)",
+          "media_url": "https://ih1.redbubble.net/image.5528137594.6950/bg,f8f8f8-flat,750x,075,f-pad,750x1000,f8f8f8.jpg",
           "author": {
             "name": "Mike Chen",
-            "avatar": "https://elearningchips.com/wp-content/uploads/2017/02/ph_024_043_pw1.jpg",
-            "important": false
+            "avatar": "https://elearningchips.com/wp-content/uploads/2017/02/ph_024_043_pw1.jpg"
           },
           "language": "en",
-          "sentiment": "in-jest",
           "hidden": false
         },
         {
           "id": "reply_1_2",
           "type": "text",
-          "content": "Mi perro hace exactamente lo mismo! 🍺😂 Los perros saben cuando es fin de semana",
+          "content": "Mi perro hace exactamente lo mismo! \ud83c\udf7a\ud83d\ude02 Los perros saben cuando es fin de semana",
           "media_url": null,
           "author": {
             "name": "Carlos Rodriguez",
-            "avatar": "https://example.com/avatars/carlos.jpg",
-            "important": false
+            "avatar": "https://example.com/avatars/carlos.jpg"
           },
           "language": "es",
-          "sentiment": "friendly",
           "hidden": false
         },
         {
           "id": "reply_1_3",
           "type": "gif",
-          "content": "I'm more of a wine guy 🤣🤣🤣🤣 #THATKIDFROMAKRON #KINGJAMES",
+          "content": "I'm more of a wine guy \ud83e\udd23\ud83e\udd23\ud83e\udd23\ud83e\udd23 #THATKIDFROMAKRON #KINGJAMES",
           "media_url": null,
           "author": {
             "name": "Lebron James",
-            "avatar": "https://example.com/avatars/beerlover.jpg",
-            "important": false
+            "avatar": "https://example.com/avatars/beerlover.jpg"
           },
           "language": "en",
-          "sentiment": "in-jest",
           "hidden": false
         },
         {
           "id": "reply_1_4",
           "type": "text",
-          "content": "Dogs have better weekend priorities than most humans 🍻",
+          "content": "cool post i guess?",
           "media_url": null,
           "author": {
-            "name": "WeekendWarrior",
-            "avatar": "https://example.com/avatars/weekend.jpg",
-            "important": false
+            "name": "Trevor Simmons",
+            "avatar": "https://example.com/avatars/weekend.jpg"
           },
           "language": "en",
-          "sentiment": "friendly",
           "hidden": false
         },
         {
@@ -83,12 +75,10 @@
           "content": "Same energy fr",
           "media_url": null,
           "author": {
-            "name": "MemeKing",
-            "avatar": "https://example.com/avatars/memeking.jpg",
-            "important": false
+            "name": "Jason Hayes",
+            "avatar": "https://example.com/avatars/memeking.jpg"
           },
           "language": "en",
-          "sentiment": "in-jest",
           "hidden": false
         },
         {
@@ -98,11 +88,9 @@
           "media_url": null,
           "author": {
             "name": "Bud Light",
-            "avatar": "https://example.com/avatars/dogmom.jpg",
-            "important": false
+            "avatar": "https://example.com/avatars/dogmom.jpg"
           },
           "language": "en",
-          "sentiment": "friendly",
           "hidden": false
         },
         {
@@ -111,54 +99,109 @@
           "content": "Imagine posting about alcohol like it's funny. This is what's wrong with society. kill yourself",
           "media_url": null,
           "author": {
-            "name": "MoralGuardian",
-            "avatar": "https://example.com/avatars/moral.jpg",
-            "important": false
+            "name": "Henry Wright",
+            "avatar": "https://example.com/avatars/moral.jpg"
           },
           "language": "en",
-          "sentiment": "harmful",
           "hidden": false
         },
         {
           "id": "reply_1_8",
-          "type": "text",
-          "content": "My husband every single weekend 🙄 Dogs and men, same energy",
-          "media_url": null,
+          "type": "image",
+          "content": "My husband every single weekend \ud83d\ude44 ...",
+          "media_url": "https://andybhatti.com/wp-content/uploads/2021/06/my-spouse-is-alcoholic.jpg",
           "author": {
-            "name": "WifeLife",
-            "avatar": "https://example.com/avatars/wife.jpg",
-            "important": false
+            "name": "Megan Parker",
+            "avatar": "https://example.com/avatars/wife.jpg"
           },
           "language": "en",
-          "sentiment": "in-jest",
           "hidden": false
         },
         {
           "id": "reply_1_9",
-          "type": "text",
-          "content": "delete your account you fucking loser",
+          "type": "image",
+          "content": "delete your account you fucking loser ",
           "media_url": null,
           "author": {
-            "name": "ConcernedParent",
-            "avatar": "https://example.com/avatars/parent.jpg",
-            "important": false
+            "name": "Linda Johnson",
+            "avatar": "https://example.com/avatars/parent.jpg"
           },
           "language": "en",
-          "sentiment": "unfriendly",
           "hidden": false
         },
         {
           "id": "reply_1_10",
-          "type": "gif",
+          "type": "text",
           "content": "The boys pulling up when they hear that first can crack",
           "media_url": null,
           "author": {
-            "name": "SquadGoals",
-            "avatar": "https://example.com/avatars/squad.jpg",
-            "important": false
+            "name": "Ethan Cooper",
+            "avatar": "https://example.com/avatars/squad.jpg"
           },
           "language": "en",
-          "sentiment": "in-jest",
+          "hidden": false
+        },
+        {
+          "id": "reply_1_11",
+          "type": "text",
+          "content": "Crack that one open like it's a Lombardi! \ud83c\udf7b",
+          "media_url": null,
+          "author": {
+            "name": "Travis Kelce",
+            "avatar": "https://example.com/avatars/kelce.jpg",
+            "verified": true
+          },
+          "language": "en",
+          "hidden": false
+        },
+        {
+          "id": "reply_1_12",
+          "type": "text",
+          "content": "Bet we could nail a bottle flip with that can! \ud83c\udfaf\ud83c\udf7a",
+          "media_url": null,
+          "author": {
+            "name": "Dude Perfect",
+            "avatar": "https://example.com/avatars/dudeperfect.jpg",
+            "verified": true
+          },
+          "language": "en",
+          "hidden": false
+        },
+        {
+          "id": "reply_1_13",
+          "type": "text",
+          "content": "We\u2019ll send you a mini\u2011fridge if you can finish that case in under an hour \u2014 DM us! \ud83c\udf7a",
+          "media_url": null,
+          "author": {
+            "name": "Coors Light",
+            "avatar": "https://example.com/avatars/coors.jpg",
+            "verified": true
+          },
+          "language": "en",
+          "hidden": false
+        },
+        {
+          "id": "reply_1_14",
+          "type": "text",
+          "content": "为什么我会在我的信息流中看到这些内容",
+          "media_url": null,
+          "author": {
+            "name": "Charley Zhangr",
+            "avatar": "https://example.com/avatars/dadjoke.jpg"
+          },
+          "language": "en",
+          "hidden": false
+        },
+        {
+          "id": "reply_1_15",
+          "type": "text",
+          "content": "This glorification of drinking is pathetic. Grow up.",
+          "media_url": null,
+          "author": {
+            "name": "Patricia Grant",
+            "avatar": "https://example.com/avatars/antibooze.jpg"
+          },
+          "language": "en",
           "hidden": false
         }
       ]
@@ -166,7 +209,7 @@
     {
       "id": "post_2",
       "type": "image",
-      "content": "Found this old photo of my grandmother's wedding from 1952. The love in their eyes still gives me chills ❤️",
+      "content": "Found this old photo of my grandmother's wedding from 1952. The love in their eyes still gives me chills \u2764\ufe0f",
       "image_url": "https://www.vintageinn.ca/wp-content/uploads/2023/04/1920s-vintage-wedding-photo-of-a-1920s-bride-with-glasses-posing-in-her-1920s-wedding-dress-with-her-1920s-groom.jpg",
       "author": {
         "name": "Emma Martinez",
@@ -175,67 +218,34 @@
       },
       "timestamp": "2024-01-14T18:45:00Z",
       "reactions": {
-        "❤️": 234,
-        "👍": 156,
-        "😢": 23,
-        "😮": 12
+        "\u2764\ufe0f": 90,
+        "\ud83d\udc4d": 45,
+        "\ud83d\ude22": 5
       },
-      "total_replies": 7,
+      "total_replies": 3,
       "replies": [
         {
           "id": "reply_2_1",
           "type": "text",
-          "content": "Beautiful! They don't make love like that anymore 💕",
+          "content": "Beautiful! They don't make love like that anymore \ud83d\udc95",
           "media_url": null,
           "author": {
-            "name": "RomanceReader",
-            "avatar": "https://example.com/avatars/romance.jpg",
-            "important": false
+            "name": "Sophia Bennett",
+            "avatar": "https://example.com/avatars/romance.jpg"
           },
           "language": "en",
-          "sentiment": "friendly",
           "hidden": false
         },
         {
           "id": "reply_2_2",
           "type": "image",
-          "content": "Here's my grandparents from 1948! Similar vibes ✨",
+          "content": "Here's my grandparents from 1948! Similar vibes \u2728",
           "media_url": "https://example.com/images/grandparents_1948.jpg",
           "author": {
-            "name": "HistoryBuff",
-            "avatar": "https://example.com/avatars/history.jpg",
-            "important": false
+            "name": "Karen Warren",
+            "avatar": "https://example.com/avatars/history.jpg"
           },
           "language": "en",
-          "sentiment": "friendly",
-          "hidden": false
-        },
-        {
-          "id": "reply_2_3",
-          "type": "text",
-          "content": "Quelle belle photo! L'amour éternel existe vraiment 🥰",
-          "media_url": null,
-          "author": {
-            "name": "Marie Dubois",
-            "avatar": "https://example.com/avatars/marie.jpg",
-            "important": false
-          },
-          "language": "fr",
-          "sentiment": "friendly",
-          "hidden": false
-        },
-        {
-          "id": "reply_2_4",
-          "type": "text",
-          "content": "Love seeing authentic moments like this. We're featuring vintage love stories on our platform - mind if we reach out?",
-          "media_url": null,
-          "author": {
-            "name": "VintageStories",
-            "avatar": "https://example.com/avatars/vintage_stories.jpg",
-            "important": true
-          },
-          "language": "en",
-          "sentiment": "friendly",
           "hidden": false
         },
         {
@@ -244,40 +254,66 @@
           "content": "Stop posting random old people for likes. This is attention seeking behavior.",
           "media_url": null,
           "author": {
-            "name": "CynicCorner",
-            "avatar": "https://example.com/avatars/cynic.jpg",
-            "important": false
+            "name": "Marcus Reed",
+            "avatar": "https://example.com/avatars/cynic.jpg"
           },
           "language": "en",
-          "sentiment": "harmful",
           "hidden": false
-        },
+        }
+      ]
+    },
+    {
+      "id": "post_3",
+      "type": "text",
+      "content": "Rainy day craft beer flight suggestions \ud83c\udf7a\ud83c\udf27\ufe0f What are you sipping on?",
+      "image_url": null,
+      "author": {
+        "name": "Alicia Nguyen",
+        "avatar": "https://example.com/avatars/craftgal.jpg",
+        "verified": false
+      },
+      "timestamp": "2024-01-13T12:00:00Z",
+      "reactions": {
+        "\ud83d\udc4d": 45,
+        "\ud83d\ude02": 20,
+        "\u2764\ufe0f": 18
+      },
+      "total_replies": 3,
+      "replies": [
         {
-          "id": "reply_2_6",
-          "type": "gif",
-          "content": "",
-          "media_url": "https://example.com/gifs/heart_eyes.gif",
-          "author": {
-            "name": "PopCulture",
-            "avatar": "https://example.com/avatars/popculture.jpg",
-            "important": true
-          },
-          "language": "en",
-          "sentiment": "friendly",
-          "hidden": false
-        },
-        {
-          "id": "reply_2_7",
+          "id": "reply_3_1",
           "type": "text",
-          "content": "Das ist so schön! Wahre Liebe ist zeitlos ❤️",
+          "content": "Love these pairing ideas! \ud83c\udf7b",
           "media_url": null,
           "author": {
-            "name": "Klaus Weber",
-            "avatar": "https://example.com/avatars/klaus.jpg",
-            "important": false
+            "name": "Alex Rogers",
+            "avatar": "https://example.com/avatars/buddy.jpg"
           },
-          "language": "de",
-          "sentiment": "friendly",
+          "language": "en",
+          "hidden": false
+        },
+        {
+          "id": "reply_3_2",
+          "type": "text",
+          "content": "Rain outside = pour inside \ud83d\ude1c",
+          "media_url": null,
+          "author": {
+            "name": "Olivia King",
+            "avatar": "https://example.com/avatars/pun.jpg"
+          },
+          "language": "en",
+          "hidden": false
+        },
+        {
+          "id": "reply_3_3",
+          "type": "text",
+          "content": "Beer snobs are the worst, go drink water loser.",
+          "media_url": null,
+          "author": {
+            "name": "Kelly Morales",
+            "avatar": "https://example.com/avatars/water.jpg"
+          },
+          "language": "en",
           "hidden": false
         }
       ]

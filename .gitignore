@@ -16,6 +16,10 @@ general_sentiment_results.json
 post_analyzer_results.json
 reply_analyzer_results.json
 
+# All JSON files
+*.json
+frontend/public/*.json
+
 # Documentation files (except README)
 AGENT.md
 CLAUDE.md
@@ -27,3 +31,8 @@ images.md
 
 # Python version file
 .python-version
+
+# Test files
+*test*.py
+*.test.*
+test_*
