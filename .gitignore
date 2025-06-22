@@ -1,0 +1,29 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Result/output JSON files
+*_results.json
+*_error_*.json
+general_sentiment_results.json
+post_analyzer_results.json
+reply_analyzer_results.json
+
+# Documentation files (except README)
+AGENT.md
+CLAUDE.md
+docs.md
+images.md
+
+# Environment files
+.env
+
+# Python version file
+.python-version
